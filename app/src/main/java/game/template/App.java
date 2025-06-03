@@ -470,6 +470,7 @@ public class App extends Application {
             placePiece(Player.BLACK, ChessPiece.PAWN, blackPawnRow, col);
         }
     }
+//---------------------------------------------------------------
 
     // Add this method to handle coordinate transformation
     private int[] getTransformedCoordinates(int row, int col) {
