@@ -85,22 +85,6 @@ public class App extends Application {
         }
     }
 
-    private void drawBoard1() {
-        clearBoard();
-        placePiece(Player.WHITE, ChessPiece.PAWN, 1, 0);
-        placePiece(Player.WHITE, ChessPiece.PAWN, 2, 0);
-        placePiece(Player.BLACK, ChessPiece.ROOK, 3, 0);
-        placePiece(Player.BLACK, ChessPiece.QUEEN, 4, 0);
-    }
-
-    private void drawBoard2() {
-        clearBoard();
-        placePiece(Player.WHITE, ChessPiece.PAWN, 1, 4);
-        placePiece(Player.WHITE, ChessPiece.PAWN, 2, 4);
-        placePiece(Player.BLACK, ChessPiece.ROOK, 3, 4);
-        placePiece(Player.BLACK, ChessPiece.QUEEN, 4, 4);
-    }
-
     private void setKeyboardHandler() {
         // add this to the root which is a VBox
         root.setOnKeyPressed(event -> {
@@ -154,7 +138,8 @@ public class App extends Application {
             if (targetPiece != null) {
                 String targetUrl = targetPiece.getImage().getUrl();
                 boolean isTargetWhite = targetUrl.contains("w");
-                isSameColor = (isWhiteTurn && isTargetWhite) || (!isWhiteTurn && !isTargetWhite);
+                boolean isTargetBlack = targetUrl.contains("b");
+                isSameColor = (isWhiteTurn && isTargetWhite) || (!isWhiteTurn && isTargetBlack);
             }
 
             // Only proceed if not moving to same color piece
