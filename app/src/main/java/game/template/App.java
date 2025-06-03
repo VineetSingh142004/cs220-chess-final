@@ -7,21 +7,20 @@ import java.net.URL;
 
 import javafx.application.Application;
 import javafx.scene.Scene;
+import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
-import javafx.scene.control.TextField;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
 
-public class App extends Application
-{
+public class App extends Application {
+
     private static final int SIZE = 8;
     // this is the size of each square in the chess or checkers board
     // this must be kept in sync with the size of the images, and the
@@ -33,35 +32,42 @@ public class App extends Application
     // and the image to place the pieces
     private StackPane[][] grid = new StackPane[SIZE][SIZE];
 
-    @Override
-    public void start(Stage primaryStage) throws Exception
-    {
-        root = new VBox();
+    // Add these instance variables at the top of the App class
+    private boolean isFirstClick = true;
+    private int sourceRow = -1;
+    private int sourceCol = -1;
+    private boolean isWhiteTurn = true;
+    private Label turnIndicator; // Add this as a new instance variable
 
+    @Override
+    public void start(Stage primaryStage) throws Exception {
+        root = new VBox();
         root.getChildren().add(createMenuBar());
+
+        // Add turn indicator
+        turnIndicator = new Label("Current Turn: White");
+        turnIndicator.getStyleClass().add("turn-indicator");
+        root.getChildren().add(turnIndicator);
 
         GridPane gridPane = new GridPane();
         // preferred size of the gridpane
         gridPane.setPrefSize(SQUARE_SIZE * 8, SQUARE_SIZE * 8);
-        
+
         root.getChildren().add(gridPane);
 
         // loosely based on https://stackoverflow.com/questions/69339314/how-can-i-draw-over-a-gridpane-of-rectangles-with-an-image-javafx
-        for (int row = 0; row < SIZE; row++)
-        {
-            for (int col = 0; col < SIZE; col++)
-            {
+        for (int row = 0; row < SIZE; row++) {
+            for (int col = 0; col < SIZE; col++) {
                 Rectangle rect = new Rectangle(SQUARE_SIZE, SQUARE_SIZE);
 
-                if ((row + col) % 2 == 0) { 
+                if ((row + col) % 2 == 0) {
                     rect.getStyleClass().add("white-square");
-                }
-                else {
+                } else {
                     rect.getStyleClass().add("black-square");
                 }
-                
+
                 StackPane cell = new StackPane(rect);
-                
+
                 grid[row][col] = cell;
 
                 // name each cell with its row and column
@@ -102,20 +108,16 @@ public class App extends Application
 
     }
 
-    private void clearBoard()
-    {
+    private void clearBoard() {
         // removes all of the images (pieces) from the board
-        for (int row = 0; row < SIZE; row++)
-        {
-            for (int col = 0; col < SIZE; col++)
-            {
+        for (int row = 0; row < SIZE; row++) {
+            for (int col = 0; col < SIZE; col++) {
                 grid[row][col].getChildren().removeIf(child -> child instanceof ImageView);
             }
         }
     }
 
-    private void drawBoard1()
-    {
+    private void drawBoard1() {
         clearBoard();
         placePiece(Player.WHITE, ChessPiece.PAWN, 1, 0);
         placePiece(Player.WHITE, ChessPiece.PAWN, 2, 0);
@@ -123,22 +125,19 @@ public class App extends Application
         placePiece(Player.BLACK, ChessPiece.QUEEN, 4, 0);
     }
 
-    private void drawBoard2()
-    {
+    private void drawBoard2() {
         clearBoard();
         placePiece(Player.WHITE, ChessPiece.PAWN, 1, 4);
         placePiece(Player.WHITE, ChessPiece.PAWN, 2, 4);
         placePiece(Player.BLACK, ChessPiece.ROOK, 3, 4);
-        placePiece(Player.BLACK, ChessPiece.QUEEN, 4,4);
+        placePiece(Player.BLACK, ChessPiece.QUEEN, 4, 4);
     }
 
-    private void setKeyboardHandler()
-    {
+    private void setKeyboardHandler() {
         // add this to the root which is a VBox
         root.setOnKeyPressed(event -> {
             System.out.println("Key pressed: " + event.getCode());
-            switch (event.getCode())
-            {
+            switch (event.getCode()) {
                 // check for the key input
                 case ESCAPE:
                     // remove focus from the textfields by giving it to the root VBox
@@ -151,94 +150,294 @@ public class App extends Application
                 default:
                     System.out.println("you typed key: " + event.getCode());
                     break;
-                
+
             }
         });
     }
 
-    private void handleMouseClick(MouseEvent event, int row, int col)
-    {
-        System.out.println("Mouse clicked on " + row + ", " + col);
+    // Replace the existing handleMouseClick method with this updated version
+    private void handleMouseClick(MouseEvent event, int row, int col) {
+        if (isFirstClick) {
+            // First click - select piece to move
+            if (hasPieceAt(row, col)) {
+                // Check if it's the correct player's turn
+                ImageView piece = getPieceAt(row, col);
+                boolean isWhitePiece = piece.getImage().getUrl().contains("w");
 
-        // I'm just showing off that you can do this
-        // the proper way to do this is to have a model class
-        // similar to the Board class in Sudoku
-        // and then ask the model what piece is at this row/col
-        grid[row][col].getChildren().forEach(child -> {
-            if (child instanceof ImageView)
-            {
-                String url = ((ImageView) child).getImage().getUrl();
-                String piece = url.substring(url.lastIndexOf('/') + 1, url.lastIndexOf('.'));
-
-                System.out.println("Image found for piece " + piece);
+                if (isWhitePiece == isWhiteTurn) {
+                    sourceRow = row;
+                    sourceCol = col;
+                    isFirstClick = false;
+                    highlightSquare(row, col);
+                    System.out.println("Selected piece at " + row + ", " + col);
+                } else {
+                    System.out.println("It's " + (isWhiteTurn ? "White" : "Black") + "'s turn");
+                }
             }
-        });
-    }
-
-    private void placePiece(Player player, ChessPiece piece, int row, int col)
-    {
-        String imageName = "";
-        if (player == Player.WHITE)
-        {
-            imageName = "w" + piece.toString().toLowerCase() + ".png";
+        } else {
+            // Second click - attempt to move piece
+            if (isValidMove(sourceRow, sourceCol, row, col)) {
+                movePiece(sourceRow, sourceCol, row, col);
+                System.out.println("Moved piece from " + sourceRow + "," + sourceCol + " to " + row + "," + col);
+                isWhiteTurn = !isWhiteTurn; // Switch turns after successful move
+                updateTurnIndicator(); // Update the turn display
+            }
+            unhighlightSquare(sourceRow, sourceCol);
+            isFirstClick = true;
+            sourceRow = -1;
+            sourceCol = -1;
         }
-        else
-        {
-            imageName = "b" + piece.toString().toLowerCase() + ".png";
+    }
+
+    // Add these new helper methods
+    private boolean hasPieceAt(int row, int col) {
+        return grid[row][col].getChildren().stream()
+                .anyMatch(node -> node instanceof ImageView);
+    }
+
+    private void highlightSquare(int row, int col) {
+        Rectangle rect = (Rectangle) grid[row][col].getChildren().get(0);
+        rect.setStyle("-fx-stroke: yellow; -fx-stroke-width: 2;");
+    }
+
+    private void unhighlightSquare(int row, int col) {
+        Rectangle rect = (Rectangle) grid[row][col].getChildren().get(0);
+        rect.setStyle("");
+    }
+
+    private void movePiece(int fromRow, int fromCol, int toRow, int toCol) {
+        // Remove any existing piece at destination
+        grid[toRow][toCol].getChildren().removeIf(node -> node instanceof ImageView);
+
+        // Get the piece from source
+        ImageView piece = grid[fromRow][fromCol].getChildren().stream()
+                .filter(node -> node instanceof ImageView)
+                .map(node -> (ImageView) node)
+                .findFirst()
+                .orElse(null);
+
+        if (piece != null) {
+            // Remove piece from source
+            grid[fromRow][fromCol].getChildren().removeIf(node -> node instanceof ImageView);
+
+            // Create new ImageView with same image
+            ImageView newPiece = new ImageView(piece.getImage());
+            newPiece.setFitWidth(SQUARE_SIZE);
+            newPiece.setFitHeight(SQUARE_SIZE);
+
+            // Add piece to destination
+            grid[toRow][toCol].getChildren().add(newPiece);
         }
-        ImageView image = loadImage(imageName);
-        // add the image to the cell
-        // each cell is stack pane so that we can "stack" the piece
-        // on top of the rectangle for the square
-        grid[row][col].getChildren().add(image);
-        // not sure if any of this was necessary; commenting it out didn't seem to matter
-        image.setFitWidth(SQUARE_SIZE);
-        image.setFitHeight(SQUARE_SIZE);
-        //image.fitWidthProperty().bind(grid[row][col].widthProperty().subtract(2));
-        //image.fitHeightProperty().bind(grid[row][col].heightProperty().subtract(2));
     }
 
-    private ImageView loadImage(String name)
-    {
-        return new ImageView(getClass().getResource("/assets/" + name).toExternalForm());
+    private boolean isValidMove(int fromRow, int fromCol, int toRow, int toCol) {
+        // Get the piece type and color from the source square
+        ImageView piece = grid[fromRow][fromCol].getChildren().stream()
+                .filter(node -> node instanceof ImageView)
+                .map(node -> (ImageView) node)
+                .findFirst()
+                .orElse(null);
+
+        if (piece == null) {
+            return false;
+        }
+
+        // Extract piece info from image URL
+        String url = piece.getImage().getUrl();
+        String pieceInfo = url.substring(url.lastIndexOf('/') + 1, url.lastIndexOf('.'));
+        boolean isWhite = pieceInfo.startsWith("w");
+        String pieceType = pieceInfo.substring(1);
+
+        // Basic movement validation based on piece type
+        switch (pieceType) {
+            case "pawn":
+                return validatePawnMove(fromRow, fromCol, toRow, toCol, isWhite);
+            case "rook":
+                return validateRookMove(fromRow, fromCol, toRow, toCol);
+            case "knight":
+                return validateKnightMove(fromRow, fromCol, toRow, toCol);
+            case "bishop":
+                return validateBishopMove(fromRow, fromCol, toRow, toCol);
+            case "queen":
+                return validateQueenMove(fromRow, fromCol, toRow, toCol);
+            case "king":
+                return validateKingMove(fromRow, fromCol, toRow, toCol);
+            default:
+                return false;
+        }
     }
 
-    private MenuBar createMenuBar()
-    {
+    // Add these piece-specific validation methods
+    private boolean validatePawnMove(int fromRow, int fromCol, int toRow, int toCol, boolean isWhite) {
+        int direction = isWhite ? -1 : 1;
+        boolean isFirstMove = (isWhite && fromRow == 6) || (!isWhite && fromRow == 1);
+
+        // Basic forward movement
+        if (fromCol == toCol) {
+            if (fromRow + direction == toRow) {
+                return !hasPieceAt(toRow, toCol);
+            }
+            // First move can be 2 squares
+            if (isFirstMove && fromRow + (2 * direction) == toRow) {
+                return !hasPieceAt(toRow, toCol) && !hasPieceAt(fromRow + direction, toCol);
+            }
+        }
+
+        // Capture move (diagonal)
+        if (Math.abs(fromCol - toCol) == 1 && fromRow + direction == toRow) {
+            return hasPieceAt(toRow, toCol);
+        }
+
+        return false;
+    }
+
+    private boolean validateRookMove(int fromRow, int fromCol, int toRow, int toCol) {
+        return fromRow == toRow || fromCol == toCol;
+    }
+
+    private boolean validateKnightMove(int fromRow, int fromCol, int toRow, int toCol) {
+        int rowDiff = Math.abs(fromRow - toRow);
+        int colDiff = Math.abs(fromCol - toCol);
+        return (rowDiff == 2 && colDiff == 1) || (rowDiff == 1 && colDiff == 2);
+    }
+
+    private boolean validateBishopMove(int fromRow, int fromCol, int toRow, int toCol) {
+        return Math.abs(fromRow - toRow) == Math.abs(fromCol - toCol);
+    }
+
+    private boolean validateQueenMove(int fromRow, int fromCol, int toRow, int toCol) {
+        return validateRookMove(fromRow, fromCol, toRow, toCol)
+                || validateBishopMove(fromRow, fromCol, toRow, toCol);
+    }
+
+    private boolean validateKingMove(int fromRow, int fromCol, int toRow, int toCol) {
+        int rowDiff = Math.abs(fromRow - toRow);
+        int colDiff = Math.abs(fromCol - toCol);
+        return rowDiff <= 1 && colDiff <= 1;
+    }
+
+    // Replace the existing createMenuBar method with this one
+    private MenuBar createMenuBar() {
         MenuBar menuBar = new MenuBar();
-    	menuBar.getStyleClass().add("menubar");
+        menuBar.getStyleClass().add("menubar");
 
-        //
-        // File Menu
-        //
-    	Menu fileMenu = new Menu("File");
+        Menu gameMenu = new Menu("Game");
 
-        addMenuItem(fileMenu, "Load from file", () -> {
-            System.out.println("Load from file");
+        addMenuItem(gameMenu, "Play", () -> {
+            // Randomly decide if white starts at bottom (true) or top (false)
+            boolean whiteAtBottom = Math.random() < 0.5;
+            setupInitialBoard(whiteAtBottom);
+            isWhiteTurn = true; // White always moves first
         });
 
-        addMenuItem(fileMenu, "board1", () -> {
-            drawBoard1();
+        addMenuItem(gameMenu, "New Game", () -> {
+            // Same as Play - randomly set up board
+            boolean whiteAtBottom = Math.random() < 0.5;
+            setupInitialBoard(whiteAtBottom);
+            isWhiteTurn = true;
         });
 
-        addMenuItem(fileMenu, "board2", () -> {
-            drawBoard2();
+        addMenuItem(gameMenu, "Quit", () -> {
+            System.exit(0);
         });
 
-        menuBar.getMenus().add(fileMenu);
-
+        menuBar.getMenus().add(gameMenu);
         return menuBar;
     }
 
-    private void addMenuItem(Menu menu, String name, Runnable action)
-    {
+    private void addMenuItem(Menu menu, String name, Runnable action) {
         MenuItem menuItem = new MenuItem(name);
         menuItem.setOnAction(event -> action.run());
         menu.getItems().add(menuItem);
     }
 
-    public static void main(String[] args) 
-    {
+    // Modify setupInitialBoard to accept orientation parameter
+    private void setupInitialBoard(boolean whiteAtBottom) {
+        clearBoard();
+        isWhiteTurn = true; // White always moves first
+        updateTurnIndicator(); // Show initial turn
+
+        int whiteBackRow = whiteAtBottom ? 7 : 0;
+        int whitePawnRow = whiteAtBottom ? 6 : 1;
+        int blackBackRow = whiteAtBottom ? 0 : 7;
+        int blackPawnRow = whiteAtBottom ? 1 : 6;
+
+        // Place White Pieces
+        placePiece(Player.WHITE, ChessPiece.ROOK, whiteBackRow, 0);
+        placePiece(Player.WHITE, ChessPiece.KNIGHT, whiteBackRow, 1);
+        placePiece(Player.WHITE, ChessPiece.BISHOP, whiteBackRow, 2);
+        placePiece(Player.WHITE, ChessPiece.QUEEN, whiteBackRow, 3);
+        placePiece(Player.WHITE, ChessPiece.KING, whiteBackRow, 4);
+        placePiece(Player.WHITE, ChessPiece.BISHOP, whiteBackRow, 5);
+        placePiece(Player.WHITE, ChessPiece.KNIGHT, whiteBackRow, 6);
+        placePiece(Player.WHITE, ChessPiece.ROOK, whiteBackRow, 7);
+        for (int col = 0; col < 8; col++) {
+            placePiece(Player.WHITE, ChessPiece.PAWN, whitePawnRow, col);
+        }
+
+        // Place Black Pieces
+        placePiece(Player.BLACK, ChessPiece.ROOK, blackBackRow, 0);
+        placePiece(Player.BLACK, ChessPiece.KNIGHT, blackBackRow, 1);
+        placePiece(Player.BLACK, ChessPiece.BISHOP, blackBackRow, 2);
+        placePiece(Player.BLACK, ChessPiece.QUEEN, blackBackRow, 3);
+        placePiece(Player.BLACK, ChessPiece.KING, blackBackRow, 4);
+        placePiece(Player.BLACK, ChessPiece.BISHOP, blackBackRow, 5);
+        placePiece(Player.BLACK, ChessPiece.KNIGHT, blackBackRow, 6);
+        placePiece(Player.BLACK, ChessPiece.ROOK, blackBackRow, 7);
+        for (int col = 0; col < 8; col++) {
+            placePiece(Player.BLACK, ChessPiece.PAWN, blackPawnRow, col);
+        }
+    }
+
+    // Add this helper method
+    private ImageView getPieceAt(int row, int col) {
+        return grid[row][col].getChildren().stream()
+                .filter(node -> node instanceof ImageView)
+                .map(node -> (ImageView) node)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private void placePiece(Player player, ChessPiece piece, int row, int col) {
+        // Create the image path based on piece color and type
+        String color = (player == Player.WHITE) ? "w" : "b";
+        String pieceName = piece.toString().toLowerCase();
+        String imagePath = "/assets/" + color + pieceName + ".png";
+
+        try {
+            // Load the image
+            URL imageUrl = getClass().getResource(imagePath);
+            if (imageUrl == null) {
+                System.err.println("Could not find image: " + imagePath);
+                return;
+            }
+
+            // Create the image view
+            ImageView imageView = new ImageView(imageUrl.toExternalForm());
+            imageView.setFitWidth(SQUARE_SIZE);
+            imageView.setFitHeight(SQUARE_SIZE);
+
+            // Remove any existing pieces at this position
+            grid[row][col].getChildren().removeIf(node -> node instanceof ImageView);
+
+            // Add the new piece
+            grid[row][col].getChildren().add(imageView);
+
+        } catch (Exception e) {
+            System.err.println("Error placing piece: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    // Add this new helper method
+    private void updateTurnIndicator() {
+        turnIndicator.setText("Current Turn: " + (isWhiteTurn ? "White" : "Black"));
+        // Optional: Change color based on turn
+        turnIndicator.setStyle("-fx-text-fill: " + (isWhiteTurn ? "white" : "black")
+                + "; -fx-background-color: " + (isWhiteTurn ? "black" : "white"));
+    }
+
+    public static void main(String[] args) {
         launch(args);
     }
 }
