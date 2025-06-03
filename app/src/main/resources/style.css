@@ -36,6 +36,7 @@
     -fx-border-width: 2;
     -fx-hgap: 1; /* Horizontal gap between cells */
     -fx-vgap: 1; /* Vertical gap between cells */
+    -fx-transition: rotate 0.5s ease-in-out;
 }
 
 .white-square {
@@ -93,13 +94,12 @@
 }
 
 .turn-indicator {
-    -fx-padding: 10px;
     -fx-font-size: 18pt;
-    -fx-font-weight: bold;
     -fx-alignment: center;
     -fx-min-width: 200px;
-    -fx-background-color: black;
-    -fx-text-fill: white;
     -fx-border-color: gray;
     -fx-border-width: 2px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-transition: background-color 0.5s ease-in-out;
 }

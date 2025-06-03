@@ -38,6 +38,8 @@ public class App extends Application {
     private int sourceCol = -1;
     private boolean isWhiteTurn = true;
     private Label turnIndicator; // Add this as a new instance variable
+    private boolean isBoardRotated = false;
+    private GridPane chessBoard;
 
     @Override
     public void start(Stage primaryStage) throws Exception {
@@ -49,42 +51,8 @@ public class App extends Application {
         turnIndicator.getStyleClass().add("turn-indicator");
         root.getChildren().add(turnIndicator);
 
-        GridPane gridPane = new GridPane();
-        // preferred size of the gridpane
-        gridPane.setPrefSize(SQUARE_SIZE * 8, SQUARE_SIZE * 8);
-
-        root.getChildren().add(gridPane);
-
-        // loosely based on https://stackoverflow.com/questions/69339314/how-can-i-draw-over-a-gridpane-of-rectangles-with-an-image-javafx
-        for (int row = 0; row < SIZE; row++) {
-            for (int col = 0; col < SIZE; col++) {
-                Rectangle rect = new Rectangle(SQUARE_SIZE, SQUARE_SIZE);
-
-                if ((row + col) % 2 == 0) {
-                    rect.getStyleClass().add("white-square");
-                } else {
-                    rect.getStyleClass().add("black-square");
-                }
-
-                StackPane cell = new StackPane(rect);
-
-                grid[row][col] = cell;
-
-                // name each cell with its row and column
-                // unsure we'll need this
-                cell.setId(row + "-" + col);
-
-                // we need to create these extra local final variables
-                // I think this has to do with thread safety?
-                final int r = row;
-                final int c = col;
-                // make each cell clickable
-                cell.setOnMouseClicked(event -> handleMouseClick(event, r, c));
-
-                // finally, put the stackpane into the gridpane
-                gridPane.add(cell, col, row);
-            }
-        }
+        // Modify the board creation
+        root.getChildren().add(createBoard());
 
         // don't give a width or height to the scene
         // it will figure it out because there's a menu bar
@@ -155,37 +123,56 @@ public class App extends Application {
         });
     }
 
-    // Replace the existing handleMouseClick method with this updated version
+    // Modify the handleMouseClick method
     private void handleMouseClick(MouseEvent event, int row, int col) {
+        // Always use untransformed coordinates for the grid
         if (isFirstClick) {
-            // First click - select piece to move
             if (hasPieceAt(row, col)) {
-                // Check if it's the correct player's turn
                 ImageView piece = getPieceAt(row, col);
-                boolean isWhitePiece = piece.getImage().getUrl().contains("w");
+                String pieceUrl = piece.getImage().getUrl();
+                boolean isWhitePiece = pieceUrl.contains("w");
+                boolean isBlackPiece = pieceUrl.contains("b");
 
-                if (isWhitePiece == isWhiteTurn) {
+                // Check if correct player is moving
+                if ((isWhiteTurn && isWhitePiece) || (!isWhiteTurn && isBlackPiece)) {
                     sourceRow = row;
                     sourceCol = col;
                     isFirstClick = false;
                     highlightSquare(row, col);
-                    System.out.println("Selected piece at " + row + ", " + col);
+                    System.out.println((isWhiteTurn ? "White" : "Black") + " selected piece at " + row + ", " + col);
                 } else {
                     System.out.println("It's " + (isWhiteTurn ? "White" : "Black") + "'s turn");
                 }
             }
         } else {
-            // Second click - attempt to move piece
-            if (isValidMove(sourceRow, sourceCol, row, col)) {
-                movePiece(sourceRow, sourceCol, row, col);
-                System.out.println("Moved piece from " + sourceRow + "," + sourceCol + " to " + row + "," + col);
-                isWhiteTurn = !isWhiteTurn; // Switch turns after successful move
-                updateTurnIndicator(); // Update the turn display
+            boolean moveSuccessful = false;
+
+            // Get target square piece
+            ImageView targetPiece = getPieceAt(row, col);
+            boolean isSameColor = false;
+
+            if (targetPiece != null) {
+                String targetUrl = targetPiece.getImage().getUrl();
+                boolean isTargetWhite = targetUrl.contains("w");
+                isSameColor = (isWhiteTurn && isTargetWhite) || (!isWhiteTurn && !isTargetWhite);
             }
+
+            // Only proceed if not moving to same color piece
+            if (!isSameColor && isValidMove(sourceRow, sourceCol, row, col)) {
+                movePiece(sourceRow, sourceCol, row, col);
+                moveSuccessful = true;
+            }
+
             unhighlightSquare(sourceRow, sourceCol);
             isFirstClick = true;
             sourceRow = -1;
             sourceCol = -1;
+
+            if (moveSuccessful) {
+                isWhiteTurn = !isWhiteTurn;
+                updateTurnIndicator();
+                rotateBoard();
+            }
         }
     }
 
@@ -269,7 +256,10 @@ public class App extends Application {
 
     // Add these piece-specific validation methods
     private boolean validatePawnMove(int fromRow, int fromCol, int toRow, int toCol, boolean isWhite) {
+        // Direction is always based on color and board rotation
         int direction = isWhite ? -1 : 1;
+
+        // First move position
         boolean isFirstMove = (isWhite && fromRow == 6) || (!isWhite && fromRow == 1);
 
         // Basic forward movement
@@ -324,16 +314,12 @@ public class App extends Application {
         Menu gameMenu = new Menu("Game");
 
         addMenuItem(gameMenu, "Play", () -> {
-            // Randomly decide if white starts at bottom (true) or top (false)
-            boolean whiteAtBottom = Math.random() < 0.5;
-            setupInitialBoard(whiteAtBottom);
-            isWhiteTurn = true; // White always moves first
+            setupInitialBoard(); // No parameter needed, white always starts at bottom
+            isWhiteTurn = true;
         });
 
         addMenuItem(gameMenu, "New Game", () -> {
-            // Same as Play - randomly set up board
-            boolean whiteAtBottom = Math.random() < 0.5;
-            setupInitialBoard(whiteAtBottom);
+            setupInitialBoard(); // No parameter needed, white always starts at bottom
             isWhiteTurn = true;
         });
 
@@ -349,44 +335,6 @@ public class App extends Application {
         MenuItem menuItem = new MenuItem(name);
         menuItem.setOnAction(event -> action.run());
         menu.getItems().add(menuItem);
-    }
-
-    // Modify setupInitialBoard to accept orientation parameter
-    private void setupInitialBoard(boolean whiteAtBottom) {
-        clearBoard();
-        isWhiteTurn = true; // White always moves first
-        updateTurnIndicator(); // Show initial turn
-
-        int whiteBackRow = whiteAtBottom ? 7 : 0;
-        int whitePawnRow = whiteAtBottom ? 6 : 1;
-        int blackBackRow = whiteAtBottom ? 0 : 7;
-        int blackPawnRow = whiteAtBottom ? 1 : 6;
-
-        // Place White Pieces
-        placePiece(Player.WHITE, ChessPiece.ROOK, whiteBackRow, 0);
-        placePiece(Player.WHITE, ChessPiece.KNIGHT, whiteBackRow, 1);
-        placePiece(Player.WHITE, ChessPiece.BISHOP, whiteBackRow, 2);
-        placePiece(Player.WHITE, ChessPiece.QUEEN, whiteBackRow, 3);
-        placePiece(Player.WHITE, ChessPiece.KING, whiteBackRow, 4);
-        placePiece(Player.WHITE, ChessPiece.BISHOP, whiteBackRow, 5);
-        placePiece(Player.WHITE, ChessPiece.KNIGHT, whiteBackRow, 6);
-        placePiece(Player.WHITE, ChessPiece.ROOK, whiteBackRow, 7);
-        for (int col = 0; col < 8; col++) {
-            placePiece(Player.WHITE, ChessPiece.PAWN, whitePawnRow, col);
-        }
-
-        // Place Black Pieces
-        placePiece(Player.BLACK, ChessPiece.ROOK, blackBackRow, 0);
-        placePiece(Player.BLACK, ChessPiece.KNIGHT, blackBackRow, 1);
-        placePiece(Player.BLACK, ChessPiece.BISHOP, blackBackRow, 2);
-        placePiece(Player.BLACK, ChessPiece.QUEEN, blackBackRow, 3);
-        placePiece(Player.BLACK, ChessPiece.KING, blackBackRow, 4);
-        placePiece(Player.BLACK, ChessPiece.BISHOP, blackBackRow, 5);
-        placePiece(Player.BLACK, ChessPiece.KNIGHT, blackBackRow, 6);
-        placePiece(Player.BLACK, ChessPiece.ROOK, blackBackRow, 7);
-        for (int col = 0; col < 8; col++) {
-            placePiece(Player.BLACK, ChessPiece.PAWN, blackPawnRow, col);
-        }
     }
 
     // Add this helper method
@@ -429,12 +377,108 @@ public class App extends Application {
         }
     }
 
-    // Add this new helper method
+    // Add or update the updateTurnIndicator method
     private void updateTurnIndicator() {
         turnIndicator.setText("Current Turn: " + (isWhiteTurn ? "White" : "Black"));
-        // Optional: Change color based on turn
-        turnIndicator.setStyle("-fx-text-fill: " + (isWhiteTurn ? "white" : "black")
-                + "; -fx-background-color: " + (isWhiteTurn ? "black" : "white"));
+        turnIndicator.getStyleClass().clear();
+        turnIndicator.getStyleClass().add("turn-indicator");
+        turnIndicator.setStyle(
+                "-fx-background-color: " + (isWhiteTurn ? "white" : "black") + ";"
+                + "-fx-text-fill: " + (isWhiteTurn ? "black" : "white") + ";"
+                + "-fx-font-weight: bold;"
+                + "-fx-padding: 10px;"
+        );
+    }
+
+    // Add rotation method
+    private void rotateBoard() {
+        isBoardRotated = !isBoardRotated;
+        chessBoard.setRotate(isBoardRotated ? 180 : 0);
+
+        // Rotate all pieces to keep them upright
+        for (int row = 0; row < SIZE; row++) {
+            for (int col = 0; col < SIZE; col++) {
+                grid[row][col].getChildren().stream()
+                        .filter(node -> node instanceof ImageView)
+                        .forEach(node -> {
+                            node.setRotate(isBoardRotated ? 180 : 0);
+                        });
+            }
+        }
+    }
+
+    // Update the createBoard method to remove coordinate transformation
+    private GridPane createBoard() {
+        chessBoard = new GridPane();
+        chessBoard.getStyleClass().add("grid-pane");
+
+        for (int row = 0; row < SIZE; row++) {
+            for (int col = 0; col < SIZE; col++) {
+                StackPane square = new StackPane();
+                Rectangle rect = new Rectangle(SQUARE_SIZE, SQUARE_SIZE);
+                rect.getStyleClass().add((row + col) % 2 == 0 ? "white-square" : "black-square");
+                square.getChildren().add(rect);
+
+                final int r = row;
+                final int c = col;
+                square.setOnMouseClicked(e -> handleMouseClick(e, r, c));
+
+                grid[row][col] = square;
+                chessBoard.add(square, col, row);
+            }
+        }
+        return chessBoard;
+    }
+
+    // Modify setupInitialBoard method
+    private void setupInitialBoard() {
+        clearBoard();
+        isBoardRotated = false;
+        chessBoard.setRotate(0);
+        isWhiteTurn = true;
+        updateTurnIndicator();
+
+        // Always set white at bottom, black at top
+        int whiteBackRow = 7;
+        int whitePawnRow = 6;
+        int blackBackRow = 0;
+        int blackPawnRow = 1;
+
+        // Place White Pieces (bottom)
+        placePiece(Player.WHITE, ChessPiece.ROOK, whiteBackRow, 0);
+        placePiece(Player.WHITE, ChessPiece.KNIGHT, whiteBackRow, 1);
+        placePiece(Player.WHITE, ChessPiece.BISHOP, whiteBackRow, 2);
+        placePiece(Player.WHITE, ChessPiece.QUEEN, whiteBackRow, 3);
+        placePiece(Player.WHITE, ChessPiece.KING, whiteBackRow, 4);
+        placePiece(Player.WHITE, ChessPiece.BISHOP, whiteBackRow, 5);
+        placePiece(Player.WHITE, ChessPiece.KNIGHT, whiteBackRow, 6);
+        placePiece(Player.WHITE, ChessPiece.ROOK, whiteBackRow, 7);
+        for (int col = 0; col < 8; col++) {
+            placePiece(Player.WHITE, ChessPiece.PAWN, whitePawnRow, col);
+        }
+
+        // Place Black Pieces (top)
+        placePiece(Player.BLACK, ChessPiece.ROOK, blackBackRow, 0);
+        placePiece(Player.BLACK, ChessPiece.KNIGHT, blackBackRow, 1);
+        placePiece(Player.BLACK, ChessPiece.BISHOP, blackBackRow, 2);
+        placePiece(Player.BLACK, ChessPiece.QUEEN, blackBackRow, 3);
+        placePiece(Player.BLACK, ChessPiece.KING, blackBackRow, 4);
+        placePiece(Player.BLACK, ChessPiece.BISHOP, blackBackRow, 5);
+        placePiece(Player.BLACK, ChessPiece.KNIGHT, blackBackRow, 6);
+        placePiece(Player.BLACK, ChessPiece.ROOK, blackBackRow, 7);
+        for (int col = 0; col < 8; col++) {
+            placePiece(Player.BLACK, ChessPiece.PAWN, blackPawnRow, col);
+        }
+    }
+
+    // Add this method to handle coordinate transformation
+    private int[] getTransformedCoordinates(int row, int col) {
+        if (isBoardRotated) {
+            // When board is rotated, transform coordinates
+            return new int[]{7 - row, 7 - col};
+        }
+        // When board is not rotated, return original coordinates
+        return new int[]{row, col};
     }
 
     public static void main(String[] args) {
